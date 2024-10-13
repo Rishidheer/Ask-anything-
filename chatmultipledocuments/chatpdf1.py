@@ -12,11 +12,7 @@ from dotenv import load_dotenv
 
 # Load the environment variables (API Key)
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-if api_key is None:
-    st.error("API key not found. Please set the GOOGLE_API_KEY in the .env file.")
-else:
-    genai.configure(api_key=api_key)
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Function to extract text from PDF files
 def get_pdf_text(pdf_docs):
@@ -24,7 +20,7 @@ def get_pdf_text(pdf_docs):
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
         for page in pdf_reader.pages:
-            text += page.extract_text() or ""
+            text += page.extract_text()
     return text
 
 # Function to split the extracted text into chunks
@@ -55,11 +51,6 @@ def get_conversational_chain():
 
 # Function to handle user input and get a response
 def user_input(user_question):
-    # Ensure the vector store is created each time
-    if not os.path.exists("faiss_index"):
-        st.warning("Vector store not found. Please upload and process the PDF files.")
-        return
-    
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     
     # Load FAISS vector store and perform similarity search
@@ -67,12 +58,11 @@ def user_input(user_question):
     docs = new_db.similarity_search(user_question)
     
     # Get the conversational chain (QA model)
-    if docs:  # Ensure there are documents found
-        chain = get_conversational_chain()
-        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-        st.write("Reply: ", response["output_text"])
-    else:
-        st.warning("No relevant documents found.")
+    chain = get_conversational_chain()
+    
+    # Get response using the chain and display it
+    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    st.write("Reply: ", response["output_text"])
 
 # Main function to run the Streamlit app
 def main():
@@ -91,15 +81,12 @@ def main():
         st.title("Menu:")
         pdf_docs = st.file_uploader("Upload your PDF Files and Click on the Submit & Process Button", accept_multiple_files=True)
         if st.button("Submit & Process"):
-            if pdf_docs:
-                with st.spinner("Processing..."):
-                    # Extract text from PDFs and create vector store
-                    raw_text = get_pdf_text(pdf_docs)
-                    text_chunks = get_text_chunks(raw_text)
-                    get_vector_store(text_chunks)
-                    st.success("Done")
-            else:
-                st.warning("Please upload PDF files before processing.")
+            with st.spinner("Processing..."):
+                # Extract text from PDFs and create vector store
+                raw_text = get_pdf_text(pdf_docs)
+                text_chunks = get_text_chunks(raw_text)
+                get_vector_store(text_chunks)
+                st.success("Done")
 
 # Run the Streamlit app
 if __name__ == "__main__":
